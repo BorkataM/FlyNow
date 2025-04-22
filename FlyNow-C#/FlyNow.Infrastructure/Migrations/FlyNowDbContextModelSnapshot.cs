@@ -59,9 +59,6 @@ namespace FlyNow.Infrastructure.Migrations
                     b.Property<DateTime>("ArrivalTime")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("AvailableSeats")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("DepartureTime")
                         .HasColumnType("datetime2");
 
