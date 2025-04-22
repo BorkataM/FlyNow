@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flynow/screens/search_flights_screen.dart';
 import 'package:flynow/screens/my_tickets_screen.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,10 +17,32 @@ class _HomeScreenState extends State<HomeScreen> {
   String _userFirstName = '';
   String _userEmail = '';
 
+  // Позиции на самолетите
+  LatLng _plane1Position = LatLng(42.6977, 23.3219); // София
+  LatLng _plane2Position = LatLng(42.6977, 23.3219); // София
+  LatLng _plane3Position = LatLng(42.6977, 23.3219); // София
+
+  late Timer _timer;
+
+  // Рутове за самолетите
+  final List<LatLng> route1 = [
+    LatLng(42.6977, 23.3219),
+    LatLng(41.9028, 12.4964),
+  ]; // София -> Рим
+  final List<LatLng> route2 = [
+    LatLng(42.6977, 23.3219),
+    LatLng(41.3851, 2.1734),
+  ]; // София -> Барселона
+  final List<LatLng> route3 = [
+    LatLng(42.6977, 23.3219),
+    LatLng(35.6762, 139.6503),
+  ]; // София -> Токио
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _startPlaneAnimation();
   }
 
   Future<void> _loadUserData() async {
@@ -30,6 +55,42 @@ class _HomeScreenState extends State<HomeScreen> {
         _userEmail = userEmail;
       });
     }
+  }
+
+  void _startPlaneAnimation() {
+    _timer = Timer.periodic(Duration(seconds: 2), (timer) {
+      setState(() {
+        // Премества самолетите по рутовете
+        _plane1Position = _getNextPosition(_plane1Position, route1);
+        _plane2Position = _getNextPosition(_plane2Position, route2);
+        _plane3Position = _getNextPosition(_plane3Position, route3);
+      });
+    });
+  }
+
+  LatLng _getNextPosition(LatLng currentPosition, List<LatLng> route) {
+    double currentLat = currentPosition.latitude;
+    double currentLng = currentPosition.longitude;
+    double targetLat = route.last.latitude;
+    double targetLng = route.last.longitude;
+
+    // Пресмятане на следваща позиция (необходимо за плавно движение)
+    double newLat = currentLat + (targetLat - currentLat) * 0.1;
+    double newLng = currentLng + (targetLng - currentLng) * 0.1;
+
+    // Ако самолетът достигне крайната точка на маршрута, връща се към началната точка
+    if ((newLat - targetLat).abs() < 0.0001 &&
+        (newLng - targetLng).abs() < 0.0001) {
+      return route.first; // Връща се към началната точка
+    }
+
+    return LatLng(newLat, newLng);
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
   }
 
   void _navigateToSearchFlights() {
@@ -90,7 +151,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20.0),
             child: SingleChildScrollView(
-              // Добавяме SingleChildScrollView тук
               child: Column(
                 children: [
                   const SizedBox(height: 40),
@@ -181,7 +241,65 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 210),
+                  const SizedBox(height: 40),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: SizedBox(
+                      height: 300,
+                      width: double.infinity,
+                      child: FlutterMap(
+                        options: MapOptions(
+                          center: LatLng(48.8566, 2.3522), // Център на картата
+                          zoom: 4,
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate:
+                                'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            subdomains: ['a', 'b', 'c'],
+                            userAgentPackageName: 'com.yourcompany.flynow',
+                          ),
+                          MarkerLayer(
+                            markers: [
+                              // Самолет София -> Рим
+                              Marker(
+                                point: _plane1Position,
+                                width: 30,
+                                height: 30,
+                                child: Icon(
+                                  Icons.airplanemode_active,
+                                  size: 30,
+                                  color: Colors.red,
+                                ),
+                              ),
+                              // Самолет София -> Барселона
+                              Marker(
+                                point: _plane2Position,
+                                width: 30,
+                                height: 30,
+                                child: Icon(
+                                  Icons.airplanemode_active,
+                                  size: 30,
+                                  color: Colors.green,
+                                ),
+                              ),
+                              Marker(
+                                point: _plane3Position,
+                                width: 30,
+                                height: 30,
+                                child: Icon(
+                                  Icons.airplanemode_active,
+                                  size: 30,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
                   Container(
                     width: double.infinity,
                     decoration: const BoxDecoration(

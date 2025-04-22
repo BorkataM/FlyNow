@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:lottie/lottie.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Добавено за sharedPreferences
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 
 class SearchFlightsScreen extends StatefulWidget {
@@ -21,6 +21,8 @@ class _SearchFlightsScreenState extends State<SearchFlightsScreen> {
 
   bool _isOriginFocused = false;
   bool _isDestinationFocused = false;
+
+  DateTime? _selectedDate;
 
   final FocusNode _originFocusNode = FocusNode();
   final FocusNode _destinationFocusNode = FocusNode();
@@ -47,8 +49,39 @@ class _SearchFlightsScreenState extends State<SearchFlightsScreen> {
         _originController.text.trim(),
         _destinationController.text.trim(),
       );
+
+      final today = DateTime.now();
+      final filteredFlights =
+          response.where((flight) {
+            final departureDate = DateTime.parse(flight['departureTime']);
+
+            // Ако е избрана дата, филтрираме само за полети на точно тази дата
+            if (_selectedDate != null) {
+              final selectedDateMidnight = DateTime(
+                _selectedDate!.year,
+                _selectedDate!.month,
+                _selectedDate!.day,
+              );
+              final departureDateMidnight = DateTime(
+                departureDate.year,
+                departureDate.month,
+                departureDate.day,
+              );
+
+              return departureDateMidnight.isAtSameMomentAs(
+                selectedDateMidnight,
+              );
+            } else {
+              // Ако не е избрана дата, показваме полети след днешния ден или на същата дата
+              return departureDate.isAfter(today) ||
+                  departureDate.isAtSameMomentAs(today);
+            }
+          }).toList();
+
+      filteredFlights.sort((a, b) => a['price'].compareTo(b['price']));
+
       setState(() {
-        _flights = response;
+        _flights = filteredFlights;
         _isLoading = false;
       });
     } catch (e) {
@@ -125,10 +158,7 @@ class _SearchFlightsScreenState extends State<SearchFlightsScreen> {
                         const SizedBox(height: 30),
                         Center(
                           child: ElevatedButton.icon(
-                            onPressed:
-                                () => _purchaseTicket(
-                                  flight,
-                                ), // Извикваме метода за покупка
+                            onPressed: () => _purchaseTicket(flight),
                             icon: const Icon(
                               Icons.shopping_cart_checkout,
                               color: Colors.white,
@@ -169,33 +199,26 @@ class _SearchFlightsScreenState extends State<SearchFlightsScreen> {
     );
   }
 
-  // Метод за извличане на имейла от sharedPreferences
   Future<String> _getUserEmail() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('userEmail') ??
-        ''; // Връща имейла или празен низ ако няма
+    return prefs.getString('userEmail') ?? '';
   }
 
-  // Метод за покупка на билет
   Future<void> _purchaseTicket(dynamic flight) async {
-    final String email =
-        await _getUserEmail(); // Извличаме имейла от sharedPreferences
-    final int flightId = flight['id']; // ID на полета
+    final String email = await _getUserEmail();
+    final int flightId = flight['id'];
 
     try {
-      // Изпращаме заявка към бекенда за покупка на билет
       final response = await _apiService.purchaseTicket(email, flightId);
-      // Ако всичко е наред, показваме съобщение за успех
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Ticket Purchased')));
-      Navigator.pop(context); // Затваряме модалния прозорец
+      Navigator.pop(context);
     } catch (e) {
-      // Ако възникне грешка, показваме съобщение за неуспех
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to purchase ticket')),
       );
-      Navigator.pop(context); // Затваряме модалния прозорец
+      Navigator.pop(context);
     }
   }
 
@@ -229,6 +252,22 @@ class _SearchFlightsScreenState extends State<SearchFlightsScreen> {
         borderSide: BorderSide.none,
       ),
     );
+  }
+
+  // Метод за избор на дата
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2101),
+    );
+
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
   }
 
   @override
@@ -281,6 +320,29 @@ class _SearchFlightsScreenState extends State<SearchFlightsScreen> {
                     label: 'To',
                     isFocused: _isDestinationFocused,
                     icon: Icons.flight_land,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: _selectDate,
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText:
+                          _selectedDate == null
+                              ? 'Select Date'
+                              : DateFormat('dd.MM.yyyy').format(_selectedDate!),
+                      filled: true,
+                      fillColor: Colors.white,
+                      prefixIcon: const Icon(Icons.calendar_today),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 30),
@@ -341,15 +403,18 @@ class _SearchFlightsScreenState extends State<SearchFlightsScreen> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    _formatDate(flight['departureTime']),
-                                    style: const TextStyle(fontSize: 16),
+                                    'Departure: ${_formatDate(flight['departureTime'])}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.grey,
+                                    ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     'Price: \$${flight['price']}',
                                     style: const TextStyle(
                                       fontSize: 16,
-                                      color: Colors.green,
+                                      color: Colors.indigo,
                                     ),
                                   ),
                                 ],
@@ -358,6 +423,13 @@ class _SearchFlightsScreenState extends State<SearchFlightsScreen> {
                           ),
                         );
                       },
+                    ),
+                  ),
+                if (!_isLoading && _flights.isEmpty)
+                  const Center(
+                    child: Text(
+                      'No flights found',
+                      style: TextStyle(fontSize: 18, color: Colors.white),
                     ),
                   ),
               ],
