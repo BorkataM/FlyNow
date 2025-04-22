@@ -1,0 +1,21 @@
+# Ignore Visual Studio files
+.vs/
+*.user
+*.suo
+
+# Ignore build output
+bin/
+obj/
+
+# Ignore Flutter/Dart build files
+.flutter-plugins
+.flutter-plugins-dependencies
+.dart_tool/
+build/
+.idea/
+.packages
+pubspec.lock
+
+# Mac and Windows system files
+.DS_Store
+Thumbs.db

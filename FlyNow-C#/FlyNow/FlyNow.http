@@ -1,0 +1,6 @@
+@FlyNow_HostAddress = http://localhost:5289
+
+GET {{FlyNow_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
